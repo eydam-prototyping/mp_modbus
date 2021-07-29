@@ -202,3 +202,5 @@ c.connect_wlan()
 mc = mp_modbus.modbus_controller({"parity":0})
 ms = mc.create_slave(1, mp_device_lib.get_device_table("OR-WE-514"))
 
+print(ms.read_value_by_name("U"))
+
