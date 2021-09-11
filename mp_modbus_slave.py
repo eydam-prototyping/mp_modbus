@@ -131,9 +131,12 @@ class modbus_tcp_server(modbus_slave):
                 frame = conn.recv(256)
                 if len(frame) > 0:
                     print(frame)
-                    res = self.handle_message(modbus_tcp_frame.parse_frame(frame)).get_frame()
-                    print(res)
-                    conn.send(res)
+                    try:
+                        res = self.handle_message(modbus_tcp_frame.parse_frame(frame)).get_frame()
+                        print(res)
+                        conn.send(res)
+                    except:
+                        break
                 else:
                     break
             conn.close()

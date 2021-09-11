@@ -3,11 +3,28 @@
 # - error messages + test cases
 # - documentation
 
+debug = True
+
 class modbus_frame:
-    def __init__(self, func_code=0, register=None, fr_type="request", length=None, data=None, error_code=None):
+    def __init__(self, func_code=0, register=None, fr_type="request", length=None, 
+        data=None, error_code=None):
+        """Init a generic modbus frame.
+
+        Args:
+            func_code (int, optional): Function Code. Defaults to 0.
+            register (int, optional): Register. Defaults to None.
+            fr_type (str, optional): Type of Frame (request or response). 
+              Defaults to "request".
+            length (int, optional): Number of registers. Defaults to None.
+            data (bytearray, optional): Data. Defaults to None.
+            error_code (int, optional): Error Code. Defaults to None.
+        """
+        
         self.type = fr_type
 
-        if func_code not in [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0F, 0x10, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x8F, 0x90]:
+        if func_code not in [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0F, 0x10, 
+            0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x8F, 0x90]:
+            
             raise ValueError("function code {} is not supported".format(func_code))
         self.func_code = func_code
         
@@ -72,6 +89,8 @@ class modbus_frame:
                 self.pdu += bytearray([self.error_code])
     
     def _create_frame(self):
+        """Override in derived Class
+        """
         pass
     
     def get_frame(self):
@@ -127,39 +146,58 @@ class modbus_rtu_frame(modbus_frame):
 
         Args:
             frame (bytearray): frame to parse.
+            fr_type (str, optional): request, response, or None
 
         Returns:
             modbus_rtu_frame: parsed frame
         """
+
+        if debug: print("Parsing RTU frame: " + " ".join(["{:02x}".format(x) for x in frame]))
+
         device_addr = frame[0]
         func_code = frame[1]
         
         if cls._check_both(frame):
+            if debug: print("frame is request or response")
             register = (frame[2]<<8) + frame[3]
             data = frame[4:6]
-            return modbus_rtu_frame(device_addr=device_addr, func_code=func_code, register=register, fr_type="request", data=data)
-
+            f = modbus_rtu_frame(device_addr=device_addr, func_code=func_code, register=register, fr_type="request", data=data)
+            if debug: print(f)
+            return f
+        
         if cls._check_request(frame) and ((fr_type is None) or (fr_type == "request")):
+            if debug: print("frame is request")
             register = (frame[2]<<8) + frame[3]
             length = (frame[4]<<8) + frame[5]
             data = None
             if func_code in [0x0F, 0x10]:
                 bc = frame[6]
                 data = frame[7:7+bc]
-            return modbus_rtu_frame(device_addr=device_addr, func_code=func_code, register=register, fr_type="request", length=length, data=data)
-
+            f = modbus_rtu_frame(device_addr=device_addr, func_code=func_code, register=register, fr_type="request", length=length, data=data)
+            if debug: print(f)
+            return f
+        
         if cls._check_response(frame) and ((fr_type is None) or (fr_type == "response")):
+            if debug: print("frame is response")
+            f = None
             if func_code in [0x01, 0x02, 0x03, 0x04]:
                 bc = frame[2]
                 data = frame[3:3+bc]
-                return modbus_rtu_frame(device_addr=device_addr, func_code=func_code, fr_type="response", data=data)
+                f = modbus_rtu_frame(device_addr=device_addr, func_code=func_code, fr_type="response", data=data)
             if func_code in [0x0F, 0x10]:
                 register = (frame[2]<<8) + frame[3]
                 length = (frame[4]<<8) + frame[5]
-                return modbus_rtu_frame(device_addr=device_addr, func_code=func_code, register=register, fr_type="response", length=length)
+                f = modbus_rtu_frame(device_addr=device_addr, func_code=func_code, register=register, fr_type="response", length=length)
             if func_code in [0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x8F, 0x90]:
                 error_code = frame[2]
-                return modbus_rtu_frame(device_addr=device_addr, func_code=func_code, fr_type="response", error_code=error_code)
+                f = modbus_rtu_frame(device_addr=device_addr, func_code=func_code, fr_type="response", error_code=error_code)
+
+            if f is not None:
+                print(f)
+                return f
+
+        print(" ".join(["{:02x}".format(x) for x in frame]))
+        raise ValueError("Could not parse Frame " + " ".join(["{:02x}".format(x) for x in frame]))
 
     @classmethod 
     def _check_both(cls, frame):
@@ -230,13 +268,21 @@ class modbus_rtu_frame(modbus_frame):
 
     @classmethod
     def transform_frame(cls, tcp_frame):
+        """transform a tcp-frame to a rtu-frame and copy all data
+
+        Args:
+            tcp_frame (modbus_tcp_frame): tcp-frame
+
+        Returns:
+            modbus_rtu_frame
+        """
         frame = modbus_rtu_frame()
-        frame.data
+        frame.data = tcp_frame.data
         frame.device_addr = tcp_frame.unit_id
         frame.func_code = tcp_frame.func_code
         frame.length = tcp_frame.length
         frame.register = tcp_frame.register
-        frame.type = tcp_frame.register
+        frame.type = tcp_frame.type
         return frame
 
 
@@ -280,38 +326,54 @@ class modbus_tcp_frame(modbus_frame):
         Returns:
             modbus_tcp_frame: parsed frame
         """
+
+        if debug: print("Parsing TCP frame: " + " ".join(["{:02x}".format(x) for x in frame]))
+        
         transaction_id = (frame[0]<<8) + frame[1]
         length = (frame[4]<<8) + frame[5]
         unit_id = frame[6]
         func_code = frame[7]
         
         if cls._check_both(frame, length):
+            if debug: print("frame is request or response")
             register = (frame[8]<<8) + frame[9]
             data = frame[10:12]
-            return modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, register=register, fr_type="request", data=data)
+            f = modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, register=register, fr_type="request", data=data)
+            if debug: print(f)
+            return f
 
         if cls._check_request(frame, length):
+            if debug: print("frame is request")
             register = (frame[8]<<8) + frame[9]
             d_length = (frame[10]<<8) + frame[11]
             data = None
             if func_code in [0x0F, 0x10]:
                 bc = frame[12]
                 data = frame[13:13+bc]
-            return modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, register=register, fr_type="request", data=data, length=d_length)
-        
+            f = modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, register=register, fr_type="request", data=data, length=d_length)
+            if debug: print(f)
+            return f
+
+        f = None
         if cls._check_response(frame, length):
+            if debug: print("frame is request")
             if func_code in [0x01, 0x02, 0x03, 0x04]:
                 bc = frame[8]
                 data = frame[9:9+bc]
-                return modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, fr_type="response", data=data)
+                f = modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, fr_type="response", data=data)
             if func_code in [0x0F, 0x10]:
                 register = (frame[8]<<8) + frame[9]
                 d_length = (frame[10]<<8) + frame[11]
-                return modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, fr_type="response", register=register, length=d_length)
+                f = modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, fr_type="response", register=register, length=d_length)
             if func_code in [0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x8F, 0x90]:
                 error_code = frame[8]
-                return modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, fr_type="response", error_code=error_code)
-        
+                f = modbus_tcp_frame(transaction_id=transaction_id ,unit_id=unit_id, func_code=func_code, fr_type="response", error_code=error_code)
+            if f is not None:
+                if debug: print(f)
+                return f
+
+        print(" ".join(["{:02x}".format(x) for x in frame]))
+        raise ValueError("Could not parse Frame " + " ".join(["{:02x}".format(x) for x in frame]))
 
     @classmethod 
     def _check_both(cls, frame, length):

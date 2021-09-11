@@ -86,25 +86,18 @@ class modbus_master:
             self.ti += 1
         elif self.ms_type == "rtu":
             f = modbus_rtu_frame(device_addr=self.device_addr, func_code=code, register=register, fr_type="request", length=length)
-            print(1)
             self.en_pin.value(1)
-            #self.uart.write(f.get_frame())
             await self.writer.awrite(f.get_frame())
-            print(2)
             t = len(f.get_frame())*9/self.baudrate
             await uasyncio.sleep(t+.01)   # wait until data is send
-            print(3)
             self.en_pin.value(0)
             i = 0
             await uasyncio.sleep(0.05)
-            print(4)
             while (self.uart.any()==0) & (i<1):
-                print(5)
                 await uasyncio.sleep(0.05)
                 i+=0.05
             if self.uart.any() > 0:
                 resp = await self.reader.readline()
-                print(6)
                 resp_frame = modbus_rtu_frame.parse_frame(resp, fr_type="response")
             else:
                 # Timeout
