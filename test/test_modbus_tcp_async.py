@@ -25,7 +25,8 @@ class Test(unittest.TestCase):
             self.assertEqual(await cl.read_coils_async(1000, 2), bytearray([0x01]))
             self.assertEqual(await cl.read_coils_async(1001, 2), bytearray([0x02]))
             self.assertEqual(await cl.read_coils_async(1000, 3), bytearray([0x05]))
-            cl.disconnect()        
+            cl.disconnect()     
+            self.srv.stop()
     
         asyncio.run(self.run_coroutines([self.srv.run_async(), client_routine()]))
 
@@ -39,7 +40,8 @@ class Test(unittest.TestCase):
             self.assertEqual(await cl.read_digital_inputs_async(1001, 1), bytearray([0x00]))
             self.assertEqual(await cl.read_digital_inputs_async(1001, 2), bytearray([0x02]))
             self.assertEqual(await cl.read_digital_inputs_async(1001, 3), bytearray([0x02]))
-            cl.disconnect()        
+            cl.disconnect()     
+            self.srv.stop()   
     
         asyncio.run(self.run_coroutines([self.srv.run_async(), client_routine()]))
 
@@ -51,11 +53,12 @@ class Test(unittest.TestCase):
             self.assertEqual(await cl.read_holding_registers_async(1000, 2), bytearray([0x00, 0x01, 0x02, 0x03]))
             self.assertEqual(await cl.read_holding_registers_async(1001, 2), bytearray([0x02, 0x03, 0x04, 0x05]))
             self.assertEqual(await cl.read_holding_registers_async(1002, 3), bytearray([0x04, 0x05, 0x06, 0x07, 0x08, 0x09]))
-            cl.disconnect()        
+            cl.disconnect()     
+            self.srv.stop()   
     
         asyncio.run(self.run_coroutines([self.srv.run_async(), client_routine()]))
 
-    def test_read_holding_registers_async(self):
+    def test_read_input_registers_async(self):
         async def client_routine():
             cl = modbus_tcp_client("127.0.0.1", 505)
             cl.connect()
@@ -63,7 +66,8 @@ class Test(unittest.TestCase):
             self.assertEqual(await cl.read_input_registers_async(1000, 2), bytearray([0x00, 0x01, 0x02, 0x03]))
             self.assertEqual(await cl.read_input_registers_async(1001, 2), bytearray([0x02, 0x03, 0x04, 0x05]))
             self.assertEqual(await cl.read_input_registers_async(1002, 3), bytearray([0x04, 0x05, 0x06, 0x07, 0x08, 0x09]))
-            cl.disconnect()        
+            cl.disconnect()      
+            self.srv.stop()  
     
         asyncio.run(self.run_coroutines([self.srv.run_async(), client_routine()]))
 
@@ -80,7 +84,8 @@ class Test(unittest.TestCase):
             self.assertEqual(await cl.read_coils_async(1000, 3), bytearray([0x07]))
             self.assertEqual(await cl.write_coils_async(1000, 3, bytearray([0x00])), 3)
             self.assertEqual(await cl.read_coils_async(1000, 3), bytearray([0x00]))
-            cl.disconnect()        
+            cl.disconnect()  
+            self.srv.stop()      
     
         asyncio.run(self.run_coroutines([self.srv.run_async(), client_routine()]))
 
@@ -93,7 +98,8 @@ class Test(unittest.TestCase):
             self.assertEqual(await cl.read_holding_registers_async(1000, 1), bytearray([0xFF, 0xEE]))
             self.assertEqual(await cl.write_holding_register_async(1001, bytearray([0xFF, 0xEE])), bytearray([0xFF, 0xEE]))
             self.assertEqual(await cl.read_holding_registers_async(1000, 2), bytearray([0xFF, 0xEE, 0xFF, 0xEE]))
-            cl.disconnect()        
+            cl.disconnect()      
+            self.srv.stop()  
     
         asyncio.run(self.run_coroutines([self.srv.run_async(), client_routine()]))
 

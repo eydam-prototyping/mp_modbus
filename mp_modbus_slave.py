@@ -12,7 +12,7 @@ import os
 mp = False
 if hasattr(os, "uname") and os.uname().sysname in ["esp32"]:
     mp = True
-    import uasyncio
+    import uasyncio as asyncio
 else:
     import asyncio
 
@@ -21,6 +21,10 @@ class modbus_slave:
         self.sl_type = sl_type
         self.context = context
         self.forward_message = None
+        self.stopped = False
+
+    def stop(self):
+        self.stopped = True
 
     def handle_message(self, frame):
         if self.context is None:
@@ -104,14 +108,21 @@ class modbus_rtu_slave(modbus_slave):
     
     async def run_async(self):
         if self.debug: print("starting async rtu slave")
-        while True:
+        while not self.stopped:
             if mp:
                 pass
             else:
-                if self.uart.any():
-                    frame = self.uart.readline()
-                    print(frame)
-
+                if mp:
+                    if self.uart.any():
+                        frame = self.uart.readline()
+                        res = self.handle_message(modbus_rtu_frame.parse_frame(frame)).get_frame()
+                else:
+                    if self.uart.inWaiting():
+                        frame = self.uart.read_all()
+                        res = self.handle_message(modbus_rtu_frame.parse_frame(frame)).get_frame()
+                        self.uart.write(res)
+                await asyncio.sleep(0.1)
+            
 
 class modbus_tcp_server(modbus_slave):
     def __init__(self, host, port, debug=True, *args, **kwargs):
@@ -124,7 +135,7 @@ class modbus_tcp_server(modbus_slave):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((self.host, self.port))
         sock.listen(5)
-        while True:
+        while not self.stopped:
             conn, addr = sock.accept()
             if self.debug: print("new connection from {}".format(addr))
             while True:
@@ -148,7 +159,7 @@ class modbus_tcp_server(modbus_slave):
         sock.bind((self.host, self.port))
         sock.listen(5)
         sock.setblocking(False)
-        while True:
+        while not self.stopped:
             conn, addr = await loop.sock_accept(sock)
             if self.debug: print("new connection from {}".format(addr))
             while True:
@@ -163,4 +174,5 @@ class modbus_tcp_server(modbus_slave):
                     if self.debug: print("shutting down async server")
                     break
             conn.close()
+        sock.close()
             

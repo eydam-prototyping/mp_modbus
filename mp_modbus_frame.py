@@ -3,7 +3,7 @@
 # - error messages + test cases
 # - documentation
 
-debug = True
+debug = False
 
 class modbus_frame:
     def __init__(self, func_code=0, register=None, fr_type="request", length=None, 
